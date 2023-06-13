@@ -1,6 +1,7 @@
 const Wallet = require('../models/wallet')
 const Users = require("../models/users")
 const Currency = require('../models/currency')
+
 const { initialAmount } = require('../constants/values')
 
 const createWallet = async (foundUser, user, res) => {
@@ -13,7 +14,7 @@ const createWallet = async (foundUser, user, res) => {
                 currency: [
                     {
                         currencyId: xUSD._id,
-                        amount: initialAmount
+                        amount: Number(initialAmount)
                     }
                 ]
             })

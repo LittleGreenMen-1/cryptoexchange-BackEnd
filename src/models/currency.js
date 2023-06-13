@@ -7,6 +7,11 @@ const currencySchema = mongoose.Schema({
         unique: true
     },
 
+    slug: {
+        type: String,
+        default: ''
+    },
+
     ratio: {
         type: Number,
         default: 1

@@ -19,7 +19,6 @@ server.post('/register', async (req, res) =>{
 
     const foundUser = await Users.findOne({ username })
     await createWallet(foundUser, user, res)
-   
 });
 
 module.exports = server
