@@ -202,8 +202,10 @@ const updateCrypto = async () => {
       const response = await got(API_URL + '&slug=' + coin.slug);
       const data = JSON.parse(response.body);
 
+      
       if (data.status.error_code == '0') { // On success
         let price = data.data.marketPairs[0].price;
+
 		    price += Math.random() * 0.1 - 0.05; // Add a bit of randomness to emphasise changes
 
         let new_ratio = price.toString().substring(0, 10); // Keep only the first 10 digits (for styling purposes)

@@ -41,6 +41,7 @@ server.get(
   "/auth/github",
   passport.authenticate("github", { scope: ["user:email"] })
 );
+
 server.get(
   "/auth/github/callback",
   passport.authenticate("github", {

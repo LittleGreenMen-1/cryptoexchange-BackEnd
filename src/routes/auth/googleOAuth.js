@@ -27,6 +27,8 @@ passport.use(
       callbackURL: "http://localhost:1234/auth/google/callback",
     },
     function (accessToken, refreshToken, profile, done) {
+      console.log("AAA");
+            
       process.nextTick(function () {
         return done(null, profile);
       });
@@ -38,8 +40,9 @@ server.get(
   "/auth/google",
   passport.authenticate("google", {
     scope: [
-      "https://www.googleapis.com/auth/userinfo.profile",
-      "https://www.googleapis.com/auth/userinfo.email",
+      // "https://www.googleapis.com/auth/userinfo.profile",
+      // "https://www.googleapis.com/auth/userinfo.email",
+      "profile"
     ],
   })
 );
@@ -58,7 +61,9 @@ server.get(
       provider: "google",
     };
     const qRes = await Users.findOne(filter);
-    await createWallet(qRes, entry, res)
+    await createWallet(qRes, entry, res);
+
+    console.log("qRes", qRes);
   }
 );
 

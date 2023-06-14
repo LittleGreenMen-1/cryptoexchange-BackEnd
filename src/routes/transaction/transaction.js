@@ -12,15 +12,22 @@ server.use(express.json())
 server.post('/transaction', isAuth, async (req, res) => {
     const { amount, baseCurrencyName, exchangeCurrencyName } = req.body
 
+    console.log(amount, baseCurrencyName, exchangeCurrencyName);
+
     let wallet = await Wallet.findOne({ userId: req.session.passport.user._id })
+
     const baseCurrency = await Currency.findOne({ name: baseCurrencyName })
     const exchangeCurrency = await Currency.findOne({ name: exchangeCurrencyName })
+
     const xUSD = await Currency.findOne({ name: 'xUSD' })
 
     const boughtCurrencyAmount = (amount * baseCurrency.ratio) / exchangeCurrency.ratio
 
     const baseCurrencyIndex = wallet.currency.findIndex(element => element.currencyId.equals(baseCurrency._id))
     let exchangeCurrencyIndex = wallet.currency.findIndex(element => element.currencyId.equals(exchangeCurrency._id))
+
+    console.log(wallet.currency[baseCurrencyIndex].amount);
+    console.log(exchangeCurrency.exchangeAmount, boughtCurrencyAmount);
 
     if (wallet.currency[baseCurrencyIndex].amount < amount)
         return res.status(400).json({
