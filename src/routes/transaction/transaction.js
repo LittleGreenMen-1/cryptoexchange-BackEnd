@@ -5,17 +5,16 @@ const Wallet = require('../../models/wallet')
 const Currency = require('../../models/currency')
 const Transaction = require('../../models/transaction')
 const { xUsdIndexWallet } = require('../../constants/values')
-const CurrencyHistory = require('../../models/currencyHistory')
 
 server.use(express.json())
 
 server.post('/transaction', isAuth, async (req, res) => {
     const { amount, baseCurrencyName, exchangeCurrencyName } = req.body
 
-    console.log(amount, baseCurrencyName, exchangeCurrencyName);
-
+    // Get user's wallet
     let wallet = await Wallet.findOne({ userId: req.session.passport.user._id })
 
+    // Get the currencies we're working with
     const baseCurrency = await Currency.findOne({ name: baseCurrencyName })
     const exchangeCurrency = await Currency.findOne({ name: exchangeCurrencyName })
 
@@ -23,20 +22,25 @@ server.post('/transaction', isAuth, async (req, res) => {
 
     const boughtCurrencyAmount = (amount * baseCurrency.ratio) / exchangeCurrency.ratio
 
-    const baseCurrencyIndex = wallet.currency.findIndex(element => element.currencyId.equals(baseCurrency._id))
-    let exchangeCurrencyIndex = wallet.currency.findIndex(element => element.currencyId.equals(exchangeCurrency._id))
+    var baseCurrencyIndex = wallet.currency.findIndex(element => element.currencyId.equals(baseCurrency._id))
+    var exchangeCurrencyIndex = wallet.currency.findIndex(element => element.currencyId.equals(exchangeCurrency._id))
 
-    console.log(wallet.currency[baseCurrencyIndex].amount);
-    console.log(exchangeCurrency.exchangeAmount, boughtCurrencyAmount);
+    if (baseCurrencyIndex == -1 || wallet.currency[baseCurrencyIndex].amount < amount) {
+        return res.status(400).json(
+            {
+                message: 'Insufficient funds in wallet for transaction',
+            }
+        );
+    }
 
-    if (wallet.currency[baseCurrencyIndex].amount < amount)
-        return res.status(400).json({
-            message: 'Insufficient funds in wallet for transaction',
-        })
-    if (exchangeCurrency.exchangeAmount < boughtCurrencyAmount)
-        return res.status(400).json({
-            message: 'Insufficient amount for the exchanged currency',
-        })
+    if (!exchangeCurrency._id.equals(xUSD._id) && exchangeCurrency.exchangeAmount < boughtCurrencyAmount) {
+        return res.status(400).json(
+            {
+                message: 'Insufficient amount for the exchanged currency',
+            }
+        );
+    }
+
     //create currency in wallet if does not exist
     if (exchangeCurrencyIndex === -1) {
         await Wallet.updateOne(
@@ -48,10 +52,13 @@ server.post('/transaction', isAuth, async (req, res) => {
                         amount: 0
                     }
                 }
-            })
+            }
+        );
+        
         //get the index which is the last in array
         exchangeCurrencyIndex = wallet.currency.length
     }
+
     //get updated wallet
     wallet = await Wallet.findOne({ userId: req.session.passport.user._id })
 
@@ -68,12 +75,13 @@ server.post('/transaction', isAuth, async (req, res) => {
                 "update": { $set: { "currency.$.amount": wallet.currency[exchangeCurrencyIndex].amount + boughtCurrencyAmount } }
             }
         }
-    ])
+    ]);
+
     await Currency.bulkWrite([
         {
             updateOne: {
                 "filter": { _id: baseCurrency._id },
-                "update": { $set: { exchangeAmount: baseCurrency.exchangeAmount - amount } }
+                "update": { $set: { exchangeAmount: baseCurrency.exchangeAmount + amount } }
             }
         },
         {
@@ -84,54 +92,13 @@ server.post('/transaction', isAuth, async (req, res) => {
         }
     ])
 
-    const ratioBase = Math.random(0, 1)
-    const ratioExchange = Math.random(0, 1)
-    let cryptoInWallet
-    if (baseCurrency._id.toString() !== xUSD._id.toString()) {
-        cryptoInWallet = wallet.currency[baseCurrencyIndex].amount - amount
-        //update ratio
-        await Currency.findByIdAndUpdate(
-            baseCurrency._id,
-            {
-                $set: { ratio: ratioBase },
-            }
-        )
-
-        await CurrencyHistory.findOneAndUpdate({ currencyId: baseCurrency._id }, {
-            $push: { ratio: ratioBase }
-        })
-        if (exchangeCurrency._id.toString() !== xUSD._id.toString()) {
-            //update ratio
-            await Currency.findByIdAndUpdate(
-                exchangeCurrency._id,
-                {
-                    $set: { ratio: ratioExchange },
-                }
-            )
-
-            await CurrencyHistory.findOneAndUpdate({ currencyId: exchangeCurrency._id }, {
-                $push: { ratio: ratioExchange }
-            })
-        }
-    }
-
-    else {
-        cryptoInWallet = wallet.currency[exchangeCurrencyIndex].amount + boughtCurrencyAmount
-        //update ratio
-        await Currency.findByIdAndUpdate(
-            exchangeCurrency._id,
-            {
-                $set: { ratio: ratioExchange },
-            }
-        )
-
-        await CurrencyHistory.findOneAndUpdate({ currencyId: exchangeCurrency._id }, {
-            $push: { ratio: ratioExchange }
-        })
-    }
-
     let currencyInWallet = await Wallet.findOne({ userId: req.session.passport.user._id })
-
+    let cryptoInWallet = baseCurrency._id.equals(xUSD._id) 
+        ? 
+            wallet.currency[exchangeCurrencyIndex].amount + boughtCurrencyAmount
+        : 
+            wallet.currency[baseCurrencyIndex].amount - amount;
+    
     const transaction = await Transaction.create({
         userId: req.session.passport.user._id,
         baseId: baseCurrency._id,

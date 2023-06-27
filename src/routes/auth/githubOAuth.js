@@ -1,14 +1,15 @@
 var express = require("express");
 var passport = require("passport");
+
 var GitHubStrategy = require("passport-github2").Strategy;
+
 const constants = require("../../constants/values.js");
 const Users = require("../../models/users.js");
-const createWallet = require('../../utils/createWallet')
+const createUserAndWallet = require('../../utils/createWallet').createUserAndWallet
 
 var server = express();
 
-const GITHUB_CLIENT_ID = "b1cb3875404707d0ca4c";
-const GITHUB_CLIENT_SECRET = "a61cc8195dd3dc34107f389ede5943fb3962d3f4";
+require("dotenv").config();
 
 passport.serializeUser(function (user, done) {
   done(null, user);
@@ -21,21 +22,40 @@ passport.deserializeUser(function (obj, done) {
 passport.use(
   new GitHubStrategy(
     {
-      clientID: GITHUB_CLIENT_ID,
-      clientSecret: GITHUB_CLIENT_SECRET,
+      clientID: process.env.GITHUB_CLIENT_ID,
+      clientSecret: process.env.GITHUB_CLIENT_SECRET,
       callbackURL: "http://localhost:1234/auth/github/callback",
+      scope: ["user:email"],
     },
     function (accessToken, refreshToken, profile, done) {
-      process.nextTick(function () {
-        return done(null, profile);
-      });
+      Users.findOne(
+        {
+          email: profile.emails[0].value,
+        },
+        async (err, user) => {
+          if (err) return done(err);
+
+          if (user) { // User exists
+            await Users.updateOne(user, { lastLogin: new Date() });
+
+            return done(null, user);
+          }
+
+          // User does not exist
+          const newUser = {
+            displayName: profile.username,
+            username: profile.username,
+            email: profile.emails[0].value,
+            provider: "github",
+          }
+
+          let createdUser = await createUserAndWallet(newUser);
+          return done(null, createdUser);
+        }
+      );
     }
   )
 );
-
-server.get('/auth/github1', (req, res) => {
-  res.redirect('/auth/github')
-})
 
 server.get(
   "/auth/github",
@@ -44,19 +64,13 @@ server.get(
 
 server.get(
   "/auth/github/callback",
-  passport.authenticate("github", {
-    failureRedirect: constants.UNAUTHORIZED_URL,
-  }),
+  passport.authenticate("github", 
+    {
+      failureRedirect: constants.UNAUTHORIZED_URL,
+    }
+  ),
   async function (req, res) {
-    const { id, displayName, username, provider } = req.user;
-    const filter = { userId: id, username };
-    const entry = {
-      ...filter,
-      displayName,
-      provider,
-    };
-    const qRes = await Users.findOne(filter)
-    await createWallet(qRes, entry, res)
+    res.redirect('http://localhost:3000');
   }
 );
 

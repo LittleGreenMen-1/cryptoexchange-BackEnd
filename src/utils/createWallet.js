@@ -34,4 +34,30 @@ const createWallet = async (foundUser, user, res) => {
     }
 }
 
+const createUserAndWallet = async (user) => {
+    const found = await Users.findOne({ _id: user.id });
+
+    if (found) return null;
+
+    try {
+        const xUSD = await Currency.findOne({ 'name': 'xUSD' })
+        const userCreated = await Users.create(user)
+        
+        const wallet = await Wallet.create({ 
+            userId: userCreated._id,
+            currency: [
+                {
+                    currencyId: xUSD._id,
+                    amount: Number(initialAmount)
+                }
+            ]
+        });
+
+        return userCreated;
+    } catch (err) {
+        console.log("[ERROR] createWallet.js: createUserAndWallet: ", err);
+    }
+}
+
 module.exports = createWallet
+module.exports.createUserAndWallet = createUserAndWallet

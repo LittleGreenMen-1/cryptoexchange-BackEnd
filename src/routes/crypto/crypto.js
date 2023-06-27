@@ -61,7 +61,7 @@ server.get('/crypto-sell', isAuth, async (req, res) => {
   for (const c of wallet.currency) {
     const currency = await Currency.findById(c.currencyId);
 
-    if (currency.name !== 'xUSD')
+    if (currency.name !== 'xUSD' && c.amount > 0.0001)
       toSell.push(
         { 
           _id: currency._id,
@@ -146,37 +146,12 @@ server.get('/ratio-history', isAuth, async (req, res) => {
         }
       );
     }).catch(err => {
-      console.log(err);
+      console.log("[ERROR] crypto.js: server.get(\'/ratio-history\'): ", err);
     });
 });
 
 // Get information about the best performing cryptocurrencies
 server.get('/bestData', isAuth, async (req, res) => {
-  // const API_URL = 'https://api.coinmarketcap.com/data-api/v3/cryptocurrency/spotlight?dataType=2&limit=30&rankRange=100&timeframe=24h';
-
-  // require('got').get(API_URL).then(resp => {
-  //   const data = JSON.parse(resp.body).data.gainerList;
-  //   const nrOfCrypto = Math.min(5, data.length); // Get first 5 cryptocurrencies, or all of them if there are less than 5
-
-  //   var returnData = [];
-  //   for (var i = 0; i < nrOfCrypto; i++) {
-  //     returnData.push(
-  //       {
-  //         name: data[i].symbol,
-  //         price: data[i].priceChange.priceChange24h.toFixed(2),
-  //       }
-  //     );
-  //   }
-
-  //   return res.status(200).json(
-  //     {
-  //       data: returnData
-  //     }
-  //   );
-  // }).catch(err => {
-  //   console.log(err);
-  // });
-
   const currencies = await Currency.find({}).sort({ ratio: -1 });
   const length  = Math.min(5, currencies.length);
   var returnData = [];

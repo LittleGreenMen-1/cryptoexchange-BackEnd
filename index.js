@@ -33,6 +33,7 @@ const profileRoutes =     require('./src/routes/profile/profile')
 const transactionRoutes = require('./src/routes/transaction/transaction')
 const walletRoutes =      require('./src/routes/crypto/wallet')
 const forumRoutes =       require('./src/routes/forum/forum')
+const currencyRoutes =    require('./src/routes/currency/currency')
 // ----------------------------------------------
 
 const server = express(); // Initialize server
@@ -48,7 +49,7 @@ mongoose.connect( // Connect to MongoDB
     console.log("db connection", !e ? "successfull" : e);
     if (!e) { // If connection is successful
       Currency.countDocuments({}, (err, count) => {
-        if (err) console.log(err);
+        if (err) console.log("[ERROR] index.js: mongoose.connect: ", err);
         else if (!count) // If there are no currencies in the DB, create them
           createCurrency();
       });
@@ -100,9 +101,20 @@ server.use(registerRoutes)
 
 server.use(transactionRoutes)
 
+server.use(currencyRoutes)
+
 // Error, user info and logout handling
 server.get(constants.UNAUTHORIZED_URL, (req, res) => {
   res.status(401).send("Unauthorized, please login");
+});
+
+server.get("/api/user", isAuth, async (req, res) => {
+  const dbUser = await Users.findById(req.session.passport.user._id);
+
+  if (dbUser)
+    return res.send(dbUser);
+
+  return res.redirect(constants.UNAUTHORIZED_URL);
 });
 
 server.use("/api/users/:id", isAuth, async (req, res) => {
@@ -117,9 +129,7 @@ server.use("/api/users/:id", isAuth, async (req, res) => {
 server.get('/logout', async (req, res) => {
   await req.session.destroy();
 
-  res
-    .status(200)
-    .json({ success: true, message: "User logged out successfully" });
+  res.redirect('http://localhost:3000/');
 });
 
 // Start the server
@@ -198,23 +208,26 @@ const updateCrypto = async () => {
   
   coin_list.forEach(async coin => {
     if (coin.slug != '') {
-      // If we have the slug (a.k.a. the unique name of the currency), get the latest price
-      const response = await got(API_URL + '&slug=' + coin.slug);
-      const data = JSON.parse(response.body);
+      try {
+        // If we have the slug (a.k.a. the unique name of the currency), get the latest price
+        const response = await got(API_URL + '&slug=' + coin.slug);
+        const data = JSON.parse(response.body);
 
-      
-      if (data.status.error_code == '0') { // On success
-        let price = data.data.marketPairs[0].price;
+        if (data.status.error_code == '0') { // On success
+          let price = data.data.marketPairs[0].price;
 
-		    price += Math.random() * 0.1 - 0.05; // Add a bit of randomness to emphasise changes
+          price += (Math.random() * 0.1 - 0.05); // Add a bit of randomness to emphasise changes
 
-        let new_ratio = price.toString().substring(0, 10); // Keep only the first 10 digits (for styling purposes)
+          let new_ratio = price.toString().substring(0, 10); // Keep only the first 10 digits (for styling purposes)
 
-        // Update the currency with the latest price
-        await Currency.findByIdAndUpdate(
-          coin._id,
-          { $set: {ratio: parseFloat(new_ratio)} }
-        );
+          // Update the currency with the latest price
+          await Currency.findByIdAndUpdate(
+            coin._id,
+            { $set: {ratio: parseFloat(new_ratio)} }
+          );
+        }
+      } catch (error) {
+        console.log("[ERROR] index.js: updateCrypto: ", error);
       }
     }
   });

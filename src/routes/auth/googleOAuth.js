@@ -1,15 +1,16 @@
 var express = require("express");
 var passport = require("passport");
-var GoogleStrategy = require("passport-google-oauth20").Strategy;
+
+var GoogleStrategy = require('passport-google-oidc');
+
 const constants = require("../../constants/values.js");
 const Users = require("../../models/users.js");
-const createWallet = require('../../utils/createWallet')
+const createUserAndWallet = require('../../utils/createWallet').createUserAndWallet
 
 var server = express();
 
-const GOOGLE_CLIENT_ID =
-  "45064056279-45qso7g003cin5hvo5cogi1ihp5o91oe.apps.googleusercontent.com";
-const GOOGLE_CLIENT_SECRET = "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";
+require("dotenv").config();
+
 
 passport.serializeUser(function (user, done) {
   done(null, user);
@@ -22,48 +23,55 @@ passport.deserializeUser(function (obj, done) {
 passport.use(
   new GoogleStrategy(
     {
-      clientID: GOOGLE_CLIENT_ID,
-      clientSecret: GOOGLE_CLIENT_SECRET,
-      callbackURL: "http://localhost:1234/auth/google/callback",
+      clientID: process.env['GOOGLE_CLIENT_ID'],
+      clientSecret: process.env['GOOGLE_CLIENT_SECRET'],
+      callbackURL: 'http://localhost:1234/auth/google/callback'
     },
-    function (accessToken, refreshToken, profile, done) {
-      console.log("AAA");
-            
-      process.nextTick(function () {
-        return done(null, profile);
-      });
+    function (issuer, profile, done) {
+      Users.findOne(
+        {
+          email: profile.emails[0].value,
+        },
+        async (err, user) => {
+          if (err) return done(err);
+
+          if (user) { // User exists
+            await Users.updateOne(user, { lastLogin: new Date() });
+
+            return done(null, user);
+          }
+          
+          // User does not exist
+          const newUser = {
+            displayName: profile.displayName,
+            username: profile.emails[0].value.split("@")[0],
+            email: profile.emails[0].value,
+            provider: "google",
+          }
+
+          let createdUser = await createUserAndWallet(newUser);
+          return done(null, createdUser);
+        }
+      );
     }
+));
+
+server.get("/auth/google", passport.authenticate("google", 
+  {
+    scope: ["profile", "email"],
+  }
   )
 );
 
 server.get(
-  "/auth/google",
-  passport.authenticate("google", {
-    scope: [
-      // "https://www.googleapis.com/auth/userinfo.profile",
-      // "https://www.googleapis.com/auth/userinfo.email",
-      "profile"
-    ],
-  })
-);
-
-server.get(
   "/auth/google/callback",
-  passport.authenticate("google", {
-    failureRedirect: constants.UNAUTHORIZED_URL,
-  }),
+  passport.authenticate("google",
+    {
+      failureRedirect: constants.UNAUTHORIZED_URL,
+    }
+  ),
   async function (req, res) {
-    const { id, displayName, emails } = req.user;
-    const filter = { userId: id, email: emails[0].value };
-    const entry = {
-      ...filter,
-      displayName,
-      provider: "google",
-    };
-    const qRes = await Users.findOne(filter);
-    await createWallet(qRes, entry, res);
-
-    console.log("qRes", qRes);
+    res.redirect('http://localhost:3000/');
   }
 );
 

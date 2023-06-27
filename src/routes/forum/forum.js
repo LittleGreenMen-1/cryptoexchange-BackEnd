@@ -55,11 +55,11 @@ server.get('/forum-answer', isAuth, async (req, res) => {
     }
 });
 
-// Get all answered questions
+// Get all questions
 server.get('/forum', isAuth, async (req, res) => {
     let questions = await Question.find(
         {
-            "answer" : { $exists: true, $ne: "" }
+            // "answer" : { $exists: true, $ne: "" }
         }
     );
 

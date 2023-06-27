@@ -1,5 +1,6 @@
 const constants = require("../constants/values.js");
 const Users = require("../models/users.js");
+
 // Simple route middleware to ensure user is authenticated and authorized.
 //   Use this route middleware on any resource that needs to be protected.  If
 //   the request is authenticated (typically via a persistent login session),
@@ -8,6 +9,7 @@ const Users = require("../models/users.js");
 async function isAuth(req, res, next) {
   if (req.isAuthenticated()) {
     const sessUser = req.session.passport.user;
+
     // check if user is authorized
     let authorizeCondition = false;
     switch (sessUser.provider) {
@@ -20,7 +22,7 @@ async function isAuth(req, res, next) {
       case "google":
         authorizeCondition = await Users.findOne({
           userId: req.session.passport.user.id,
-          email: req.session.passport.user.emails[0].value,
+          email: req.session.passport.user.email,
         });
       default:
         authorizeCondition = await Users.findOne({
